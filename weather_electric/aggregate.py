@@ -15,19 +15,11 @@ class UsageAndWeather:
 
     @classmethod
     def empty(cls) -> "UsageAndWeather":
-        return cls(
-            ElectricUsage(*map(str, range(8))), HourlyWeather(*map(str, range(16)))
-        )
+        return cls(ElectricUsage(*map(str, range(8))), HourlyWeather(*map(str, range(16))))
 
     def to_csv_row(self) -> AggregateRow:
         result = self.usage.__dict__.copy()
-        result.update(
-            {
-                k: v
-                for k, v in self.weather.__dict__.items()
-                if k not in ["date", "time"]
-            }
-        )
+        result.update({k: v for k, v in self.weather.__dict__.items() if k not in ["date", "time"]})
         return result
 
 
@@ -48,6 +40,28 @@ def load_aggregate_csv(csv_path: str) -> List[AggregateRow]:
     """
     with open(csv_path, "r") as f:
         return list(csv.DictReader(f))
+
+
+def add_delta_columns(rows: List[AggregateRow]) -> List[AggregateRow]:
+    """
+    Add fields ending in '_prev', '_next', and '_dt' that indicate the change
+    in a field over time.
+    """
+    res = [x.copy() for x in rows]
+    for i, v in enumerate(res):
+        prev_i, next_i = max(i - 1, 0), min(len(res) - 1, i + 1)
+        prev, next = res[prev_i], res[next_i]
+        for k in v.keys():
+            try:
+                float(v[k])
+                prev_val = float(prev[k])
+                next_val = float(next[k])
+            except ValueError:
+                continue
+            v[k + "_prev"] = prev[k]
+            v[k + "_next"] = next[k]
+            v[k + "_dt"] = str((next_val - prev_val) / (next_i - prev_i))
+    return res
 
 
 def row_duration(row: AggregateRow) -> float:
